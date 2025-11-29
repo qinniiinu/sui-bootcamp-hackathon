@@ -26,7 +26,7 @@ export function MessageList({ messages, currentUser, userProfiles = {} }: Messag
         height: "100%",
         overflowY: "auto",
         padding: "1rem",
-        background: "var(--gray-a2)",
+        background: "rgb(100, 100, 100)",
         borderRadius: "var(--radius-3)",
       }}
     >

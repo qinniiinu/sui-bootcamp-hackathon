@@ -67,7 +67,11 @@ export function SendMessage({ onMessageSent }: SendMessageProps) {
           onChange={(e) => setMessage(e.target.value)}
           onKeyPress={handleKeyPress}
           disabled={isPending || !account}
-          style={{ flex: 1 }}
+          style={{
+            flex: 1,
+            border: "2px solid #3b82f6",
+            borderRadius: "8px",
+          }}
         />
         <Button
           onClick={handleSend}
