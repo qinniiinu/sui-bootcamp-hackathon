@@ -24,7 +24,8 @@ module chat_app::chat_contract {
     public struct Message has store, copy, drop {
         sender: address,
         text: String,
-        timestamp: u64
+        timestamp: u64,
+        read_by: vector<address>
     }
 
     public struct MessagePosted has copy, drop {
@@ -37,6 +38,12 @@ module chat_app::chat_contract {
         owner: address,
         username: String,
         avatar_url: String
+    }
+
+    public struct MessageRead has copy, drop {
+        message_index: u64,
+        reader: address,
+        timestamp: u64
     }
 
     // ========== Functions ==========
@@ -102,7 +109,8 @@ module chat_app::chat_contract {
         let msg = Message {
             sender: sender,
             text: text,
-            timestamp: timestamp
+            timestamp: timestamp,
+            read_by: vector::empty()
         };
 
         vector::push_back(&mut room.messages, msg);
@@ -112,5 +120,37 @@ module chat_app::chat_contract {
             text: text,
             timestamp: timestamp
         });
+    }
+
+    // 標記訊息為已讀
+    public fun mark_message_as_read(
+        room: &mut ChatRoom,
+        message_index: u64,
+        clock: &Clock,
+        ctx: &mut TxContext
+    ) {
+        let reader = tx_context::sender(ctx);
+        let messages_len = vector::length(&room.messages);
+        
+        // 檢查訊息索引是否有效
+        assert!(message_index < messages_len, 0);
+        
+        // 獲取訊息的可變引用
+        let msg = vector::borrow_mut(&mut room.messages, message_index);
+        
+        // 檢查使用者是否已經標記過
+        let already_read = vector::contains(&msg.read_by, &reader);
+        
+        if (!already_read) {
+            // 將讀者地址加入到已讀列表
+            vector::push_back(&mut msg.read_by, reader);
+            
+            // 發送已讀事件
+            event::emit(MessageRead {
+                message_index: message_index,
+                reader: reader,
+                timestamp: clock::timestamp_ms(clock)
+            });
+        }
     }
 }

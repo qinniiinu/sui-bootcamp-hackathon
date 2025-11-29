@@ -10,6 +10,7 @@ interface Message {
   sender: string;
   text: string;
   timestamp: number;
+  readBy: string[];
 }
 
 interface UserProfileMap {
@@ -52,11 +53,17 @@ export function ChatRoom({ roomId, roomName }: ChatRoomProps) {
     if (chatRoomData?.data?.content && "fields" in chatRoomData.data.content) {
       const fields = chatRoomData.data.content.fields as any;
       if (fields.messages && Array.isArray(fields.messages)) {
-        const parsedMessages: Message[] = fields.messages.map((msg: any) => ({
-          sender: msg.fields?.sender || msg.sender || "",
-          text: msg.fields?.text || msg.text || "",
-          timestamp: Number(msg.fields?.timestamp || msg.timestamp || 0),
-        }));
+        const parsedMessages: Message[] = fields.messages.map((msg: any, index: number) => {
+          const readBy = msg.fields?.read_by || msg.read_by || [];
+          console.log(`訊息 ${index} 的 read_by:`, readBy);
+          return {
+            sender: msg.fields?.sender || msg.sender || "",
+            text: msg.fields?.text || msg.text || "",
+            timestamp: Number(msg.fields?.timestamp || msg.timestamp || 0),
+            readBy: readBy,
+          };
+        });
+        console.log("解析後的訊息:", parsedMessages);
         setMessages(parsedMessages);
       } else {
         setMessages([]);
@@ -180,6 +187,8 @@ export function ChatRoom({ roomId, roomName }: ChatRoomProps) {
             messages={messages}
             currentUser={account.address}
             userProfiles={userProfiles}
+            roomId={roomId}
+            onMessageRead={() => refetch()}
           />
         </Box>
 
