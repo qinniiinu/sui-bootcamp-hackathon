@@ -1,9 +1,9 @@
-import { useCurrentAccount, useSuiClientQuery } from "@mysten/dapp-kit";
+import { useCurrentAccount, useSuiClientQuery, useSuiClient } from "@mysten/dapp-kit";
 import { Box, Container, Flex, Heading, Text, Card } from "@radix-ui/themes";
 import { MessageList } from "./MessageList";
 import { SendMessage } from "./SendMessage";
 import { UserProfile } from "./UserProfile";
-import { CHAT_ROOM_OBJECT_ID } from "../config";
+import { CHAT_ROOM_OBJECT_ID, CHAT_CONTRACT_PACKAGE_ID } from "../config";
 import { useEffect, useState } from "react";
 
 interface Message {
@@ -12,9 +12,18 @@ interface Message {
   timestamp: number;
 }
 
+interface UserProfileMap {
+  [address: string]: {
+    username: string;
+    avatarUrl: string;
+  };
+}
+
 export function ChatRoom() {
   const account = useCurrentAccount();
+  const client = useSuiClient();
   const [messages, setMessages] = useState<Message[]>([]);
+  const [userProfiles, setUserProfiles] = useState<UserProfileMap>({});
 
   // 讀取 ChatRoom 對象
   const { data: chatRoomData, refetch } = useSuiClientQuery(
@@ -46,6 +55,74 @@ export function ChatRoom() {
     }
   }, [chatRoomData]);
 
+  // 查詢所有發送者的 Profile
+  useEffect(() => {
+    const fetchUserProfiles = async () => {
+      if (!messages.length || CHAT_CONTRACT_PACKAGE_ID === "0x0") {
+        return;
+      }
+
+      // 收集所有唯一的發送者地址
+      const uniqueAddresses = Array.from(
+        new Set(messages.map((msg) => msg.sender).filter(Boolean))
+      );
+
+      if (uniqueAddresses.length === 0) {
+        return;
+      }
+
+      // 為每個地址查詢 Profile
+      const profilePromises = uniqueAddresses.map(async (address) => {
+        try {
+          const ownedObjects = await client.getOwnedObjects({
+            owner: address,
+            filter: {
+              StructType: `${CHAT_CONTRACT_PACKAGE_ID}::chat_contract::Profile`,
+            },
+            options: {
+              showContent: true,
+              showType: true,
+            },
+          });
+
+          if (ownedObjects.data && ownedObjects.data.length > 0) {
+            const profile = ownedObjects.data[0];
+            if (
+              profile.data?.content &&
+              "fields" in profile.data.content
+            ) {
+              const fields = profile.data.content.fields as any;
+              return {
+                address,
+                username: fields.username || "",
+                avatarUrl: fields.avatar_url || "",
+              };
+            }
+          }
+          return { address, username: "", avatarUrl: "" };
+        } catch (error) {
+          console.error(`查詢地址 ${address} 的 Profile 失敗:`, error);
+          return { address, username: "", avatarUrl: "" };
+        }
+      });
+
+      const profiles = await Promise.all(profilePromises);
+      const profileMap: UserProfileMap = {};
+      profiles.forEach((profile) => {
+        if (profile.username) {
+          profileMap[profile.address] = {
+            username: profile.username,
+            avatarUrl: profile.avatarUrl,
+          };
+        }
+      });
+
+      setUserProfiles(profileMap);
+    };
+
+    fetchUserProfiles();
+  }, [messages, client]);
+
   if (!account) {
     return (
       <Container>
@@ -68,6 +145,9 @@ export function ChatRoom() {
     );
   }
 
+  console.log(messages ,account);
+
+
   return (
     <Container size="3" p="4" style={{ maxWidth: "1200px", margin: "0 auto" }}>
       <Flex 
@@ -84,10 +164,13 @@ export function ChatRoom() {
           <Heading size="6">聊天室</Heading>
           <UserProfile onProfileUpdate={() => refetch()} />
         </Flex>
-
         {/* 訊息列表 */}
         <Box style={{ flex: 1, overflow: "hidden", minHeight: 0 }}>
-          <MessageList messages={messages} currentUser={account.address} />
+          <MessageList 
+            messages={messages} 
+            currentUser={account.address}
+            userProfiles={userProfiles}
+          />
         </Box>
 
         {/* 發送訊息 */}

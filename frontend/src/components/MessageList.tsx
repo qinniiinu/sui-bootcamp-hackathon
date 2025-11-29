@@ -1,4 +1,4 @@
-import { Box, Card, Text, Flex } from "@radix-ui/themes";
+import { Box, Card, Text, Flex, Avatar } from "@radix-ui/themes";
 import { formatDistanceToNow } from "date-fns";
 import { zhTW } from "date-fns/locale";
 
@@ -8,12 +8,18 @@ interface Message {
   timestamp: number;
 }
 
+interface UserProfile {
+  username: string;
+  avatarUrl: string;
+}
+
 interface MessageListProps {
   messages: Message[];
   currentUser: string;
+  userProfiles?: { [address: string]: UserProfile };
 }
 
-export function MessageList({ messages, currentUser }: MessageListProps) {
+export function MessageList({ messages, currentUser, userProfiles = {} }: MessageListProps) {
   return (
     <Box
       style={{
@@ -33,6 +39,8 @@ export function MessageList({ messages, currentUser }: MessageListProps) {
           {messages.map((message, index) => {
             const isOwnMessage = message.sender === currentUser;
             const messageDate = new Date(message.timestamp);
+            const profile = userProfiles[message.sender];
+            const displayName = profile?.username || `${message.sender.slice(0, 8)}...${message.sender.slice(-6)}`;
 
             return (
               <Flex
@@ -52,10 +60,18 @@ export function MessageList({ messages, currentUser }: MessageListProps) {
                 >
                   <Flex direction="column" gap="1">
                     {!isOwnMessage && (
-                      <Text size="1" weight="bold" style={{ opacity: 0.8 }}>
-                        {message.sender.slice(0, 8)}...
-                        {message.sender.slice(-6)}
-                      </Text>
+                      <Flex align="center" gap="2">
+                        {profile?.avatarUrl && (
+                          <Avatar 
+                            src={profile.avatarUrl} 
+                            size="1" 
+                            fallback={profile.username[0] || "U"} 
+                          />
+                        )}
+                        <Text size="1" weight="bold" style={{ opacity: 0.8 }}>
+                          {displayName}
+                        </Text>
+                      </Flex>
                     )}
                     <Text size="3">{message.text}</Text>
                     <Text
