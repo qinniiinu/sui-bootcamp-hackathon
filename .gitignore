@@ -47,3 +47,8 @@ frontend/src
 frontend/tsconfig.json
 frontend/tsconfig.node.json
 frontend/vite.config.mts
+
+# chat_contract
+chat_contract/build/*
+chat_contract/.trace
+chat_contract/.coverage*
