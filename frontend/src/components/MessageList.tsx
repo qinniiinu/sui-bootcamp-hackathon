@@ -1,12 +1,13 @@
-import { Box, Card, Text, Flex, Avatar, Dialog, Button, ScrollArea } from "@radix-ui/themes";
+import { Box, Card, Text, Flex, Avatar } from "@radix-ui/themes";
 import { formatDistanceToNow } from "date-fns";
 import { zhTW } from "date-fns/locale";
+import { useEffect, useRef } from "react";
 
 interface Message {
   sender: string;
   text: string;
   timestamp: number;
-  readBy: string[];
+  id?: string;
 }
 
 interface UserProfile {
@@ -18,9 +19,50 @@ interface MessageListProps {
   messages: Message[];
   currentUser: string;
   userProfiles?: { [address: string]: UserProfile };
+  readStats?: { [messageId: string]: Set<string> };
+  onMarkAsRead?: (messageId: string) => void;
 }
 
-export function MessageList({ messages, currentUser, userProfiles = {} }: MessageListProps) {
+export function MessageList({
+  messages,
+  currentUser,
+  userProfiles = {},
+  readStats = {},
+  onMarkAsRead,
+}: MessageListProps) {
+  const messageRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
+
+  // 格式化顯示名稱（可在這裡修改字樣）
+  const formatDisplayName = (address: string) => {
+    if (address === currentUser) return "你";
+    const profile = userProfiles[address];
+    if (profile?.username) return profile.username;
+    return `${address.slice(0, 8)}...${address.slice(-6)}`;
+  };
+
+  // IntersectionObserver 自動標記已讀
+  useEffect(() => {
+    if (!onMarkAsRead) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            const messageId = entry.target.getAttribute("data-message-id");
+            if (messageId) onMarkAsRead(messageId);
+          }
+        });
+      },
+      { threshold: 0.5 }
+    );
+
+    messages.forEach((msg, idx) => {
+      const id = msg.id || `msg_${idx}`;
+      const el = messageRefs.current[id];
+      if (el) observer.observe(el);
+    });
+
+    return () => observer.disconnect();
+  }, [messages, onMarkAsRead]);
 
   return (
     <Box
@@ -39,112 +81,86 @@ export function MessageList({ messages, currentUser, userProfiles = {} }: Messag
       ) : (
         <Flex direction="column" gap="3">
           {messages.map((message, index) => {
+            const msgId = message.id || `msg_${index}`;
             const isOwnMessage = message.sender === currentUser;
             const messageDate = new Date(message.timestamp);
             const profile = userProfiles[message.sender];
-            const displayName = profile?.username || `${message.sender.slice(0, 8)}...${message.sender.slice(-6)}`;
-            const readCount = message.readBy.length;
-            console.log(readCount);
+            const displayName = formatDisplayName(message.sender);
+            const readCount = readStats?.[msgId]?.size || 0;
+
+            // 氣泡圓角：top-left, top-right, bottom-right, bottom-left
+            const bubbleRadius = isOwnMessage
+              ? "16px 16px 4px 16px" // 右側訊息（自己的）底右角小
+              : "16px 16px 16px 4px"; // 左側訊息（他人的）底左角小
+
             return (
               <Flex
-                key={index}
+                key={msgId}
                 justify={isOwnMessage ? "end" : "start"}
                 style={{ width: "100%" }}
               >
-                <Card
+                <Box
+                  ref={(el) => {
+                    messageRefs.current[msgId] = el;
+                  }}
+                  data-message-id={msgId}
                   style={{
-                    maxWidth: "70%",
-                    padding: "0.75rem 1rem",
-                    background: isOwnMessage
-                      ? "var(--accent-9)"
-                      : "var(--gray-3)",
-                    color: isOwnMessage ? "white" : "var(--gray-12)",
+                    display: "flex",
+                    gap: 8,
+                    alignItems: "flex-end",
+                    maxWidth: "80%",
                   }}
                 >
-                  <Flex direction="column" gap="1">
-                    {!isOwnMessage && (
-                      <Flex align="center" gap="2">
-                        {profile?.avatarUrl && (
-                          <Avatar 
-                            src={profile.avatarUrl} 
-                            size="1" 
-                            fallback={profile.username[0] || "U"} 
-                          />
-                        )}
-                        <Text size="1" weight="bold" style={{ opacity: 0.8 }}>
-                          {displayName}
-                        </Text>
-                      </Flex>
-                    )}
-                    <Text size="3">{message.text}</Text>
-                    <Flex justify="between" align="center" style={{ marginTop: "0.25rem" }}>
-                      <Text
-                        size="1"
-                        style={{
-                          opacity: 0.7,
-                        }}
-                      >
+                  {!isOwnMessage && (
+                    <Avatar
+                      src={profile?.avatarUrl}
+                      size="2"
+                      fallback={profile?.username?.[0] || "U"}
+                    />
+                  )}
+
+                  <Box
+                    style={{
+                      background: isOwnMessage ? "var(--accent-9)" : "var(--gray-3)",
+                      color: isOwnMessage ? "white" : "var(--gray-12)",
+                      padding: "0.6rem 0.9rem",
+                      borderRadius: bubbleRadius,
+                      boxShadow: isOwnMessage
+                        ? "0 6px 18px rgba(0,0,0,0.18)"
+                        : "0 4px 12px rgba(0,0,0,0.12)",
+                      wordBreak: "break-word",
+                    }}
+                  >
+                    <Flex direction="column" gap="4">
+                      {!isOwnMessage && (
+                        <Flex align="center" gap="8" style={{ marginBottom: 4 }}>
+                          <Text size="1" weight="bold" style={{ opacity: 0.9 }}>
+                            {displayName}
+                          </Text>
+                          <Text size="1" color="gray">
+                            👁️ {readCount}
+                          </Text>
+                        </Flex>
+                      )}
+
+                      <Text size="3" style={{ lineHeight: 1.4 }}>
+                        {message.text}
+                      </Text>
+
+                      <Text size="1" style={{ opacity: 0.7, marginTop: 6 }}>
                         {formatDistanceToNow(messageDate, {
                           addSuffix: true,
                           locale: zhTW,
                         })}
                       </Text>
-                      {isOwnMessage && readCount > 0 && (
-                        <Dialog.Root>
-                          <Dialog.Trigger>
-                            <Text
-                              size="1"
-                              style={{
-                                opacity: 0.8,
-                                cursor: "pointer",
-                                textDecoration: "underline",
-                              }}
-                            >
-                              已讀 {readCount} 人
-                            </Text>
-                          </Dialog.Trigger>
-                          <Dialog.Content style={{ maxWidth: 450 }}>
-                            <Dialog.Title>已讀名單</Dialog.Title>
-                            <ScrollArea style={{ maxHeight: 400 }}>
-                              <Flex direction="column" gap="2" style={{ marginTop: "1rem" }}>
-                                {message.readBy.map((readerAddress) => {
-                                  const readerProfile = userProfiles[readerAddress];
-                                  const readerName = readerProfile?.username || 
-                                    `${readerAddress.slice(0, 8)}...${readerAddress.slice(-6)}`;
-                                  
-                                  return (
-                                    <Flex key={readerAddress} align="center" gap="2">
-                                      {readerProfile?.avatarUrl ? (
-                                        <Avatar 
-                                          src={readerProfile.avatarUrl} 
-                                          size="2" 
-                                          fallback={readerProfile.username[0] || "U"} 
-                                        />
-                                      ) : (
-                                        <Avatar 
-                                          size="2" 
-                                          fallback={readerName[0] || "U"} 
-                                        />
-                                      )}
-                                      <Text>{readerName}</Text>
-                                    </Flex>
-                                  );
-                                })}
-                              </Flex>
-                            </ScrollArea>
-                            <Flex gap="3" mt="4" justify="end">
-                              <Dialog.Close>
-                                <Button variant="soft" color="gray">
-                                  關閉
-                                </Button>
-                              </Dialog.Close>
-                            </Flex>
-                          </Dialog.Content>
-                        </Dialog.Root>
-                      )}
                     </Flex>
-                  </Flex>
-                </Card>
+                  </Box>
+
+                  {isOwnMessage && (
+                    // 保留空位或 avatar 替代物，使右側訊息對齊漂亮
+                    <div style={{ width: 32 }} />
+                  )}
+                </Box>
               </Flex>
             );
           })}
