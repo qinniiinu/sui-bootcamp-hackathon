@@ -32,7 +32,10 @@ export function useSubscribeToEvents({
 
         const unsubscribe = await client.subscribeEvent({
           filter: {
-            Package: CHAT_CONTRACT_PACKAGE_ID,
+            MoveModule: {
+              package: CHAT_CONTRACT_PACKAGE_ID,
+              module: "chat_contract",
+            },
           },
           onMessage: (event) => {
             if (!isSubscribed) return;

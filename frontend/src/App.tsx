@@ -53,7 +53,6 @@ function ChatApp() {
     address: zkAddress,
     userSalt,
     setUserSalt,
-    logout: zkLogout,
   } = useZKLogin();
 
   // ✅ 第一次拿到 JWT 時，生成 salt 並存到 localStorage
