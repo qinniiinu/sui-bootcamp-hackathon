@@ -185,9 +185,6 @@ export function MessageList({
                           <Text size="1" weight="bold" style={{ opacity: 0.9 }}>
                             {displayName}
                           </Text>
-                          <Text size="1" color="gray">
-                            👁️ {readCount}
-                          </Text>
                         </Flex>
                       )}
 
@@ -195,12 +192,19 @@ export function MessageList({
                         {message.text}
                       </Text>
 
-                      <Text size="1" style={{ opacity: 0.7, marginTop: 6 }}>
-                        {formatDistanceToNow(messageDate, {
-                          addSuffix: true,
-                          locale: zhTW,
-                        })}
-                      </Text>
+                      <Flex justify="between" align="center" style={{ marginTop: 6 }}>
+                        <Text size="1" style={{ opacity: 0.7 }}>
+                          {formatDistanceToNow(messageDate, {
+                            addSuffix: true,
+                            locale: zhTW,
+                          })}
+                        </Text>
+                        {isOwnMessage && (
+                          <Text size="1" style={{ opacity: 0.8, marginLeft: 8 }}>
+                            👁️ {readCount}
+                          </Text>
+                        )}
+                      </Flex>
                     </Flex>
                   </Box>
 
