@@ -187,8 +187,6 @@ export function ChatRoom({ roomId, roomName }: ChatRoomProps) {
             messages={messages}
             currentUser={account.address}
             userProfiles={userProfiles}
-            roomId={roomId}
-            onMessageRead={() => refetch()}
           />
         </Box>
 
