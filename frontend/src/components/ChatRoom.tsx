@@ -7,7 +7,6 @@ import { CHAT_CONTRACT_PACKAGE_ID } from "../config"; // 只剩這個用 env
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { Transaction } from "@mysten/sui/transactions";
 import { useSubscribeToEvents } from "../hooks/useSubscribeToEvents";
-import { executeSponsoredTransaction } from "../utils/sponsorUtils";
 
 interface Message {
   sender: string;
@@ -34,6 +33,7 @@ interface ChatRoomProps {
 export function ChatRoom({ roomId, roomName }: ChatRoomProps) {
   const account = useCurrentAccount();
   const client = useSuiClient();
+  const { mutate: signAndExecute } = useSignAndExecuteTransaction();
   const [messages, setMessages] = useState<Message[]>([]);
   const [userProfiles, setUserProfiles] = useState<UserProfileMap>({});
   const [hasMarkedAllRead, setHasMarkedAllRead] = useState(false);
@@ -163,8 +163,7 @@ export function ChatRoom({ roomId, roomName }: ChatRoomProps) {
   }, [messages, client]);
 
   // 批量標記所有未讀訊息為已讀（當最後一個訊息出現時調用）
-  // 使用管理者賬戶支付 gas 費
-  const markAllMessagesAsRead = useCallback(async () => {
+  const markAllMessagesAsRead = useCallback(() => {
     if (!account || !roomId || roomId === "0x0" || hasMarkedAllRead) {
       return;
     }
@@ -180,44 +179,42 @@ export function ChatRoom({ roomId, roomName }: ChatRoomProps) {
       return;
     }
 
-    console.log("開始批量標記所有未讀訊息為已讀（管理者支付 gas）");
+    console.log("開始批量標記所有未讀訊息為已讀");
     setHasMarkedAllRead(true);
 
-    try {
-      const tx = new Transaction();
-      const clock = tx.object("0x6");
+    const tx = new Transaction();
+    const clock = tx.object("0x6");
 
-      // 使用新的 sponsored 函數，傳入用戶地址
-      tx.moveCall({
-        target: `${CHAT_CONTRACT_PACKAGE_ID}::chat_contract::mark_all_messages_as_read_sponsored`,
-        arguments: [
-          tx.object(roomId),
-          tx.pure.address(account.address), // 傳入用戶地址
-          clock,
-        ],
-      });
+    tx.moveCall({
+      target: `${CHAT_CONTRACT_PACKAGE_ID}::chat_contract::mark_all_messages_as_read`,
+      arguments: [
+        tx.object(roomId),
+        clock,
+      ],
+    });
 
-      // 使用管理者賬戶執行交易
-      const result = await executeSponsoredTransaction(tx, client);
-      
-      console.log("批量標記所有訊息為已讀成功（管理者已支付 gas）:", result);
-      
-      // 等待區塊鏈確認後重新獲取數據
-      setTimeout(() => {
-        refetch();
-      }, 1000);
-      setTimeout(() => {
-        refetch();
-      }, 3000);
-      
-    } catch (error) {
-      console.error("批量標記訊息已讀失敗:", error);
-      setHasMarkedAllRead(false);
-      
-      // 如果管理者支付失敗，可以提示用戶自己支付
-      alert("管理者支付 gas 失敗，請檢查管理者賬戶餘額或配置");
-    }
-  }, [account, roomId, messages, hasMarkedAllRead, client, refetch]);
+    signAndExecute(
+      {
+        transaction: tx,
+        chain: "sui:testnet",
+      },
+      {
+        onSuccess: () => {
+          console.log("批量標記所有訊息為已讀成功，等待區塊鏈確認...");
+          setTimeout(() => {
+            refetch();
+          }, 1000);
+          setTimeout(() => {
+            refetch();
+          }, 3000);
+        },
+        onError: (error: Error) => {
+          console.error("批量標記訊息已讀失敗:", error);
+          setHasMarkedAllRead(false);
+        },
+      }
+    );
+  }, [account, roomId, messages, hasMarkedAllRead, signAndExecute, refetch]);
 
   // 單個訊息標記為已讀（用於 IntersectionObserver）
   const handleMarkAsRead = useCallback((messageId: string) => {

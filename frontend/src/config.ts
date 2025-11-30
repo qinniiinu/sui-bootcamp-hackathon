@@ -3,4 +3,3 @@
 export const CHAT_CONTRACT_PACKAGE_ID = import.meta.env.VITE_CHAT_PACKAGE_ID || "0x0";
 export const CHAT_ROOM_OBJECT_ID = import.meta.env.VITE_CHAT_ROOM_ID || "0x0";
 
-export const SPONSOR_PRIVATE_KEY = import.meta.env.VITE_SPONSOR_PRIVATE_KEY || "";
